@@ -1,6 +1,7 @@
 import { Heading } from "@/components/heading";
 
 import { Akamai } from "./akamai";
+import { Appwrite } from "./appwrite";
 import { Azure } from "./azure";
 import { Box } from "./box";
 import { DigitalOceanSpaces } from "./digitalocean-spaces";
@@ -46,6 +47,7 @@ export const Adapters = () => (
     <Azure />
     <Supabase />
     <Uploadthing />
+    <Appwrite />
     <Fs />
   </section>
 );

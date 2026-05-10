@@ -33,6 +33,7 @@ const sections: Section[] = [
       { id: "adapter-azure", label: "Azure Blob Storage" },
       { id: "adapter-supabase", label: "Supabase Storage" },
       { id: "adapter-uploadthing", label: "UploadThing" },
+      { id: "adapter-appwrite", label: "Appwrite" },
       { id: "adapter-fs", label: "Filesystem" },
     ],
     id: "adapters",

@@ -1,33 +1,22 @@
 "use client";
 
 import { Check, TriangleAlert, X } from "lucide-react";
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 
 import { Heading } from "@/components/heading";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 
-type Status = "ok" | "warn" | "no";
+type Status = "no" | "ok" | "warn";
+type Cell = Status | { note: string; status: Status };
 
-interface Cell {
-  status: Status;
-  note?: string;
-}
-
-const ok: Cell = { status: "ok" };
-const warn = (note: string): Cell => ({ note, status: "warn" });
+const ok: Cell = "ok";
 const no = (note: string): Cell => ({ note, status: "no" });
+const warn = (note: string): Cell => ({ note, status: "warn" });
 
 const COLUMNS = [
-  { key: "s3", label: "S3", parent: "S3" },
+  { key: "s3", label: "S3", parent: "AWS S3" },
   { key: "r2-http", label: "HTTP", parent: "Cloudflare R2" },
-  { key: "r2-binding", label: "binding", parent: "Cloudflare R2" },
-  { key: "r2-hybrid", label: "hybrid", parent: "Cloudflare R2" },
+  { key: "r2-binding", label: "Binding", parent: "Cloudflare R2" },
+  { key: "r2-hybrid", label: "Hybrid", parent: "Cloudflare R2" },
   { key: "vb-public", label: "public", parent: "Vercel Blob" },
   { key: "vb-private", label: "private", parent: "Vercel Blob" },
   { key: "nb", label: "Netlify", parent: "Netlify Blobs" },
@@ -43,6 +32,7 @@ const COLUMNS = [
   { key: "box", label: "Box", parent: "Box" },
   { key: "azure", label: "Azure", parent: "Azure" },
   { key: "supabase", label: "Supabase", parent: "Supabase" },
+  { key: "appwrite", label: "Appwrite", parent: "Appwrite" },
   { key: "ut-public", label: "public", parent: "UploadThing" },
   { key: "ut-private", label: "private", parent: "UploadThing" },
   { key: "fs", label: "fs", parent: "Filesystem" },
@@ -50,10 +40,11 @@ const COLUMNS = [
 
 type ColumnKey = (typeof COLUMNS)[number]["key"];
 
-const ROWS: { method: string; cells: Record<ColumnKey, Cell> }[] = [
+const ROWS: { cells: Record<ColumnKey, Cell>; method: string }[] = [
   {
     cells: {
       akamai: ok,
+      appwrite: ok,
       azure: ok,
       box: warn(
         "Two-stage: walks/creates parent folders by ID under `rootFolderId`, then `uploads.uploadFile` (≤50 MB) or `chunkedUploads.uploadBigFile` (>50 MB). Re-uploads against existing leaf names route through `uploadFileVersion` (overwrite). Stream bodies are buffered up-front — Box's upload manager takes a Node `Readable`, not a Web stream. User `metadata` and `cacheControl` throw — Box exposes file metadata via classifications and metadata templates; drop to `raw.fileMetadata.*` if you need it."
@@ -89,6 +80,7 @@ const ROWS: { method: string; cells: Record<ColumnKey, Cell> }[] = [
   {
     cells: {
       akamai: ok,
+      appwrite: ok,
       azure: ok,
       box: warn(
         "Resolves the file ID, then fetches `getDownloadFileUrl` for both buffered and streaming reads — the SDK's native `downloadFile` returns a Node `Readable` that's awkward to expose isomorphically, so the adapter routes through standard HTTP, which gives a `ReadableStream` body."
@@ -120,6 +112,7 @@ const ROWS: { method: string; cells: Record<ColumnKey, Cell> }[] = [
   {
     cells: {
       akamai: ok,
+      appwrite: ok,
       azure: ok,
       box: ok,
       dropbox: ok,
@@ -147,6 +140,7 @@ const ROWS: { method: string; cells: Record<ColumnKey, Cell> }[] = [
   {
     cells: {
       akamai: ok,
+      appwrite: ok,
       azure: ok,
       box: warn(
         "Returns immediate-children files only at `rootFolderId` — no recursion, and subfolders are filtered out. `prefix` is filename-prefix only (matched client-side within the page). Pagination uses Box's offset, encoded as a numeric cursor string."
@@ -190,6 +184,7 @@ const ROWS: { method: string; cells: Record<ColumnKey, Cell> }[] = [
   {
     cells: {
       akamai: ok,
+      appwrite: ok,
       azure: ok,
       box: warn(
         "Box doesn't store user-supplied content types on file content — `head()` returns a type inferred from the filename extension (or `application/octet-stream` when unknown). `size`, `etag`, and `lastModified` come from `getFileById`."
@@ -227,6 +222,9 @@ const ROWS: { method: string; cells: Record<ColumnKey, Cell> }[] = [
   {
     cells: {
       akamai: ok,
+      appwrite: warn(
+        "Read-then-write — Appwrite has no server-side copy primitive, so the source is downloaded and re-uploaded. Costs an egress + an ingest; not atomic."
+      ),
       azure: warn(
         "Server-side copy via `syncCopyFromURL` — capped at 256 MB source size. Larger blobs need `beginCopyFromURL` (poller); drop down to `adapter.raw` for that. SAS-only adapter mode reuses the configured token; shared-key mode mints a 5-min read SAS."
       ),
@@ -268,6 +266,9 @@ const ROWS: { method: string; cells: Record<ColumnKey, Cell> }[] = [
   {
     cells: {
       akamai: ok,
+      appwrite: warn(
+        "Throws by default because Appwrite SDKs cannot mint presigned reading URLs with keys. Set `public: true` at construction to return the constructed Appwrite public CDN URL. `expiresIn` and `responseContentDisposition` are ignored."
+      ),
       azure: warn(
         "Signs a SAS read URL. Throws when constructed in SAS-only or anonymous mode (no shared key available to sign). Pass `accountKey` + `accountName` or a `connectionString` that contains an account key, or set `publicBaseUrl` for a public container."
       ),
@@ -321,6 +322,9 @@ const ROWS: { method: string; cells: Record<ColumnKey, Cell> }[] = [
   {
     cells: {
       akamai: ok,
+      appwrite: no(
+        "No presigned upload primitive in Appwrite. Use JWTs or client SDKs for direct uploads."
+      ),
       azure: warn(
         "PUT URL only — Azure has no POST policy equivalent. `maxSize` throws because Azure SAS has no `content-length-range` policy; enforce upload caps at your application gateway instead. Throws in SAS-only or anonymous mode (no shared key to sign). The returned headers include the required `x-ms-blob-type: BlockBlob`."
       ),
@@ -382,154 +386,96 @@ const ICON_BY_STATUS: Record<
   warn: { Icon: TriangleAlert, cls: "text-amber-500", label: "Caveat" },
 };
 
-const StatusIcon = ({ cell }: { cell: Cell }) => {
-  const { Icon, cls, label } = ICON_BY_STATUS[cell.status];
-  const icon = (
-    <Icon className={cn("size-4 shrink-0", cls)} aria-label={label} />
-  );
-  if (!cell.note) {
+const Cell = ({ cell }: { cell: Cell }) => {
+  const status = typeof cell === "string" ? cell : cell.status;
+  const { Icon, cls, label } = ICON_BY_STATUS[status];
+  const icon = <Icon className={cls} />;
+
+  if (typeof cell === "string" || !cell.note) {
     return <span className="inline-flex">{icon}</span>;
   }
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex cursor-help focus-visible:outline-1 focus-visible:outline-ring rounded-sm"
-          aria-label={`${label}: ${cell.note}`}
-        >
-          {icon}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>{cell.note}</TooltipContent>
-    </Tooltip>
+    <span
+      className="inline-flex cursor-help items-center gap-1"
+      title={cell.note}
+    >
+      {icon}
+      <span className="sr-only">
+        ({label}: {cell.note})
+      </span>
+    </span>
   );
 };
 
-// Header row: providers grouped above their configurations. Each parent
-// label spans only its own configurations so the visual grouping stays
-// truthful (S3 / MinIO / DigitalOcean span 1, R2 spans 3, Vercel Blob spans 2).
-const HEADER_GROUPS: { parent: string; span: number }[] = (() => {
-  const groups: { parent: string; span: number }[] = [];
-  for (const col of COLUMNS) {
-    const last = groups.at(-1);
-    if (last && last.parent === col.parent) {
-      last.span += 1;
-    } else {
-      groups.push({ parent: col.parent, span: 1 });
-    }
-  }
-  return groups;
-})();
-
-const Legend = ({
-  icon: Icon,
-  cls,
-  children,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  cls: string;
-  children: ReactNode;
-}) => (
-  <span className="inline-flex items-center gap-1.5">
-    <Icon className={cn("size-3.5", cls)} />
-    <span>{children}</span>
-  </span>
-);
-
 export const CompatibilityMatrix = () => (
-  <section>
-    <Heading as="h2">Compatibility matrix</Heading>
-    <p>
-      Every adapter implements the same nine-method surface, but the URL methods
-      and a couple of edge cases vary by provider. Hover the warning and error
-      icons for the why behind each one.
-    </p>
-    <TooltipProvider delayDuration={150}>
-      <div className="overflow-x-auto rounded-md border border-dotted">
-        <table className="w-full border-collapse text-xs">
-          <thead>
-            <tr className="border-b border-dotted">
-              <th className="sticky left-0 bg-background px-3 py-2 text-left font-medium text-muted-foreground" />
-              {HEADER_GROUPS.map((g, i) => (
+  <section className="flex flex-col gap-6">
+    <div className="flex flex-col gap-2">
+      <Heading as="h2">Compatibility Matrix</Heading>
+      <p>
+        Standard primitives supported by each adapter. Caveats (
+        <TriangleAlert className="inline h-4 w-4 text-amber-500" />) usually
+        denote read-then-write implementations or provider-specific limitations
+        on metadata/expiration.
+      </p>
+    </div>
+
+    <div className="relative w-full overflow-auto rounded-lg border">
+      <table className="w-full text-left text-sm">
+        <thead className="bg-muted/50 border-b text-xs uppercase tracking-wider">
+          <tr>
+            <th className="p-4 font-bold" rowSpan={2}>
+              Method
+            </th>
+            {[...new Set(COLUMNS.map((c) => c.parent))].map((parent) => {
+              const cols = COLUMNS.filter((c) => c.parent === parent);
+              return (
                 <th
-                  className={cn(
-                    "px-2 py-2 text-center font-medium text-foreground",
-                    i < HEADER_GROUPS.length - 1 && "border-r border-dotted"
-                  )}
-                  colSpan={g.span}
-                  key={g.parent}
+                  className="border-l px-4 py-2 text-center font-bold"
+                  key={parent}
+                  colSpan={cols.length}
                 >
-                  {g.parent}
+                  {parent}
                 </th>
+              );
+            })}
+          </tr>
+          <tr>
+            {COLUMNS.map((col) => {
+              const sameAsParent = col.label === col.parent;
+              return (
+                <th
+                  className="border-l px-4 py-2 text-center font-medium opacity-70"
+                  key={col.key}
+                >
+                  {sameAsParent ? "" : col.label}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {ROWS.map((row) => (
+            <tr
+              className="hover:bg-muted/30 transition-colors"
+              key={row.method}
+            >
+              <td className="p-4 font-mono font-medium">
+                {row.method}
+                <span className="text-muted-foreground">()</span>
+              </td>
+              {COLUMNS.map((col) => (
+                <td
+                  className="border-l px-4 py-2 text-center"
+                  key={`${row.method}-${col.key}`}
+                >
+                  <Cell cell={row.cells[col.key]} />
+                </td>
               ))}
             </tr>
-            <tr className="border-b border-dotted">
-              <th className="sticky left-0 bg-background px-3 py-2 text-left font-medium text-muted-foreground">
-                Method
-              </th>
-              {COLUMNS.map((col, i) => {
-                const next = COLUMNS[i + 1];
-                const endsGroup = !next || next.parent !== col.parent;
-                const sameAsParent = col.parent === col.label;
-                return (
-                  <th
-                    className={cn(
-                      "px-2 py-2 text-center font-normal text-muted-foreground whitespace-nowrap",
-                      endsGroup &&
-                        i < COLUMNS.length - 1 &&
-                        "border-r border-dotted"
-                    )}
-                    key={col.key}
-                  >
-                    {sameAsParent ? "" : col.label}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {ROWS.map((row) => (
-              <tr
-                className="border-b border-dotted last:border-b-0"
-                key={row.method}
-              >
-                <th className="sticky left-0 bg-background px-3 py-2 text-left font-mono font-normal whitespace-nowrap">
-                  {row.method}
-                </th>
-                {COLUMNS.map((col, i) => {
-                  const next = COLUMNS[i + 1];
-                  const endsGroup = !next || next.parent !== col.parent;
-                  return (
-                    <td
-                      className={cn(
-                        "px-2 py-2 text-center",
-                        endsGroup &&
-                          i < COLUMNS.length - 1 &&
-                          "border-r border-dotted"
-                      )}
-                      key={col.key}
-                    >
-                      <StatusIcon cell={row.cells[col.key]} />
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </TooltipProvider>
-    <p className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
-      <Legend icon={Check} cls="text-emerald-500">
-        Supported
-      </Legend>
-      <Legend icon={TriangleAlert} cls="text-amber-500">
-        Supported with caveat
-      </Legend>
-      <Legend icon={X} cls="text-red-500">
-        Throws
-      </Legend>
-    </p>
+          ))}
+        </tbody>
+      </table>
+    </div>
   </section>
 );
