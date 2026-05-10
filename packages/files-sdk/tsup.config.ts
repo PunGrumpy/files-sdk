@@ -20,6 +20,7 @@ export default defineConfig({
     "src/supabase/index.ts",
     "src/fs/index.ts",
     "src/uploadthing/index.ts",
+    "src/appwrite/index.ts",
     "src/onedrive/index.ts",
     "src/dropbox/index.ts",
     "src/box/index.ts",

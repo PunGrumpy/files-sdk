@@ -86,6 +86,10 @@
       "types": "./dist/uploadthing/index.d.ts",
       "import": "./dist/uploadthing/index.js"
     },
+    "./appwrite": {
+      "types": "./dist/appwrite/index.d.ts",
+      "import": "./dist/appwrite/index.js"
+    },
     "./onedrive": {
       "types": "./dist/onedrive/index.d.ts",
       "import": "./dist/onedrive/index.js"
@@ -121,6 +125,7 @@
     "box-typescript-sdk-gen": "^1.19.1",
     "dropbox": "^10.34.0",
     "google-auth-library": "^9.15.1",
+    "node-appwrite": "^24.1.0",
     "uploadthing": "^7"
   },
   "devDependencies": {
